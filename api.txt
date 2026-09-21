@@ -1,0 +1,545 @@
+
+Diseño Conceptual de una API RESTful: Workout Tracker
+1. Introducción
+El presente documento describe el diseño conceptual de una API RESTful para una
+aplicación de seguimiento de entrenamientos físicos denominada Workout Tracker. La aplicación
+permite a los usuarios registrarse, autenticarse mediante tokens JWT, gestionar planes de
+entrenamiento compuestos por ejercicios con series, repeticiones y peso, programar sesiones para
+fechas específicas, actualizar y eliminar dichos entrenamientos, y generar informes de progreso a
+partir del historial de sesiones completadas.
+1.1 Objetivo general
+Aplicar la metodología de diseño de APIs RESTful en seis pasos al caso de estudio
+Workout Tracker, obteniendo como resultado un documento de diseño conceptual que sirva de
+base técnica para una futura implementación del backend.
+1.2 Objetivos específicos
+• Identificar y definir los recursos que conforman el dominio del problema.
+• Diseñar los endpoints CRUD y de autenticación con sus métodos HTTP asociados.
+• Establecer la estructura de URIs y las representaciones JSON de cada recurso.
+• Aplicar buenas prácticas RESTful, incluyendo idempotencia, autenticación JWT y
+códigos de estado HTTP.
+• Definir una estrategia de versionado que permita la evolución de la API.
+1.3 Alcance
+3
+El alcance de este diseño se limita a la definición de recursos, endpoints, estructura de
+URIs, representaciones JSON, buenas prácticas RESTful y estrategia de versionado. No se
+incluye implementación de código, configuración de base de datos, pruebas unitarias ni
+documentación OpenAPI, en concordancia con los requisitos de la actividad
+GA1-220501098-03-AA1-EV081.
+1.4 Metodología
+El diseño se desarrolló siguiendo una metodología de seis pasos: (1) identificación de los
+recursos del dominio, (2) definición de los campos y tipos de cada recurso, (3) diseño de los
+endpoints CRUD, (4) definición de la estructura de URIs, (5) establecimiento de las
+representaciones JSON, y (6) aplicación de buenas prácticas y estrategia de versionado.
+2. Definición de recursos
+2.1 Usuarios (Users)
+Recurso que representa una cuenta de usuario registrada en la aplicación. Contiene
+credenciales de acceso y datos personales básicos.
+Tabla 1
+Campos del recurso Usuario (Users)
+Campo Tipo Descripción
+id UUID Identificador único del usuario
+name String Nombre completo del usuario
+email String Correo electrónico (único)
+password String Contraseña hasheada (nunca se expone en respuestas)
+createdAt DateTime Fecha de creación de la cuenta
+4
+2.2 Ejercicios (Exercises)
+Catálogo de ejercicios disponibles que sirve como semilla de datos. Los usuarios
+seleccionan de este catálogo al crear sus entrenamientos.
+Tabla 2
+Campos del recurso Ejercicio (Exercises)
+Campo Tipo Descripción
+id UUID Identificador único del ejercicio
+name String Nombre del ejercicio
+description String Descripción breve de la ejecución
+category String
+Categoría o grupo muscular (cardio, fuerza, pecho, espalda,
+piernas, flexibilidad)
+2.3 Entrenamientos (Workouts)
+Recurso principal que representa un plan de entrenamiento creado por un usuario.
+Contiene una o más referencias a ejercicios del catálogo, cada uno con datos específicos de la
+sesión.
+Tabla 3
+Campos del recurso Entrenamiento (Workouts)
+Campo Tipo Descripción
+id UUID Identificador único del entrenamiento
+userId UUID Referencia al usuario propietario
+name String Nombre del entrenamiento
+description String Descripción opcional
+scheduledAt DateTime Fecha y hora programada
+status String Estado: pending, active, completed
+exercises Array Lista de ejercicios con series, repeticiones y peso
+5
+Campo Tipo Descripción
+comments String Comentarios o notas del usuario
+createdAt DateTime Fecha de creación
+Cada elemento del array exercises contiene:
+Tabla 4
+Campos del objeto exercises dentro de Workouts
+Campo Tipo Descripción
+exerciseId UUID Referencia al ejercicio del catálogo
+sets Integer Número de series
+reps Integer Número de repeticiones por serie
+weight Number Peso utilizado (en kg)
+2.4 Informes/Progreso (Reports)
+Recurso generado a partir del historial de entrenamientos completados de un usuario.
+Proporciona estadísticas resumidas de progreso.
+Tabla 5
+Campos del recurso Informe (Reports)
+Campo Tipo Descripción
+id UUID Identificador único del informe
+userId UUID Referencia al usuario
+period String Período consultado (week, month, year)
+totalWorkouts Integer Total de entrenamientos en el período
+completedWorkouts Integer Entrenamientos completados
+averageWeight Number Peso promedio utilizado
+topCategories Array Categorías más entrenadas
+generatedAt DateTime Fecha de generación del informe
+6
+2.5 Modelo relacional de datos
+Las relaciones entre los recursos se representan de la siguiente manera:
+• Usuario → Entrenamientos: relación 1:N. Un usuario puede tener múltiples
+entrenamientos, pero cada entrenamiento pertenece a un solo usuario (indicado por el
+campo userId).
+• Entrenamiento → Ejercicios: relación M:N a través de una tabla intermedia implícita en
+el array exercises. Cada entrenamiento contiene una o más entradas de ejercicios del
+catálogo, y cada ejercicio del catálogo puede aparecer en múltiples entrenamientos de
+distintos usuarios.
+• Usuario → Informes: relación 1:N. Un usuario puede tener múltiples informes
+generados, pero cada informe pertenece a un solo usuario.
+Diagrama entidad-relación (conceptual)
+Figura 1
+Diagrama entidad-relación conceptual del dominio Workout Tracker
++-------------+ +-------------------+ +--------------+
+| users | | workouts | | exercises |
++-------------+ +-------------------+ +--------------+
+| id (PK) |--1:N--| id (PK) | | id (PK) |
+| name | | userId (FK) | | name |
+| email | | name | | description |
+| password | | description | | category |
+| createdAt | | scheduledAt | +--------------+
++-------------+ | status |
+| exercises[] (M:N) |
++--------------| comments |
+| 1:N | createdAt |
+| +-------------------+
++------+---------+
+| reports |
++-----------------+
+| id (PK) |
+7
+| userId (FK) |
+| period |
+| totalWorkouts |
+| completedWorkouts |
+| averageWeight |
+| topCategories |
+| generatedAt |
++-----------------+
+3. Diseño de endpoints CRUD
+3.1 Autenticación
+Tabla 6
+Endpoints de autenticación
+Método Endpoint Descripción
+POST /v1/auth/register Registrar un nuevo usuario
+POST /v1/auth/login Iniciar sesión y obtener token JWT
+3.2 Usuarios
+Tabla 7
+Endpoints del recurso Usuarios
+Método Endpoint Descripción
+GET /v1/users/me Obtener perfil del usuario autenticado
+PUT /v1/users/me Actualizar perfil del usuario autenticado
+3.3 Ejercicios
+Tabla 8
+Endpoints del recurso Ejercicios
+8
+Método Endpoint Descripción
+GET /v1/exercises Listar todos los ejercicios (catálogo)
+GET /v1/exercises/{id} Obtener un ejercicio por ID
+Nota: El catálogo de ejercicios es de solo lectura para los usuarios regulares. Solo el
+administrador podría crear o modificar ejercicios, lo cual está fuera del alcance de este
+diseño.
+3.4 Entrenamientos
+Tabla 9
+Endpoints del recurso Entrenamientos
+Método Endpoint Descripción
+GET /v1/users/{userId}/workouts
+Listar entrenamientos del usuario (filtros: status,
+ordenados por scheduledAt)
+GET
+/v1/users/{userId}/workouts/{id
+}
+Obtener un entrenamiento específico
+POST /v1/users/{userId}/workouts Crear un nuevo entrenamiento
+PUT
+/v1/users/{userId}/workouts/{id
+}
+Actualizar un entrenamiento existente
+DELETE
+/v1/users/{userId}/workouts/{id
+}
+Eliminar un entrenamiento
+Parámetros de consulta para GET /v1/users/{userId}/workouts:
+Tabla 10
+Parámetros de consulta para listar entrenamientos
+Parámetro Tipo Descripción
+status String Filtrar por estado: pending, active, completed
+from DateTime Fecha de inicio del rango
+to DateTime Fecha de fin del rango
+9
+3.5 Informes
+Tabla 11
+Endpoints del recurso Informes
+Método Endpoint Descripción
+GET /v1/users/{userId}/reports Generar informe de progreso del usuario
+GET /v1/users/{userId}/reports/{id} Obtener un informe generado previamente
+Parámetros de consulta para GET /v1/users/{userId}/reports:
+Tabla 12
+Parámetros de consulta para generar informes
+Parámetro Tipo Descripción
+period String Período del informe: week, month, year
+3.6 Transición de estados de un entrenamiento
+El campo status de un entrenamiento sigue un ciclo de vida controlado:
+Figura 2
+Transición de estados de un entrenamiento
+pending --> active --> completed
+| |
++-----------+--> (eliminado mediante DELETE)
+• pending: entrenamiento programado que aún no ha comenzado (fecha futura).
+• active: entrenamiento en curso (se activa al llegar la fecha/hora programada).
+10
+• completed: entrenamiento finalizado; estos registros alimentan la generación de informes
+de progreso.
+4. Diseño de URIs
+4.1 Convenciones de nomenclatura
+Las URIs siguen las siguientes convenciones:
+• Sustantivos en plural: /users, /exercises, /workouts, /reports.
+• Sin extensiones de archivo: los clientes indican el formato deseado mediante el header
+Accept: application/json.
+• Jerarquía de recursos anidados: los entrenamientos e informes dependen de un usuario,
+por lo que se anidan bajo /users/{userId}.
+• Versión en la URI: todas las rutas comienzan con /v1/ para facilitar la evolución de la
+API.
+4.2 Estructura jerárquica
+Figura 3
+Estructura jerárquica de rutas de la API
+/v1/
+|-- auth/
+| |-- register (POST)
+| `-- login (POST)
+|-- users/
+| `-- me (GET, PUT)
+|-- exercises/
+| |-- (GET)
+| `-- {id} (GET)
+`-- users/
+`-- {userId}/
+|-- workouts/
+| |-- (GET, POST)
+| `-- {id} (GET, PUT, DELETE)
+`-- reports/
+11
+|-- (GET)
+`-- {id} (GET)
+4.3 Justificación del anidamiento
+Los recursos workouts y reports se anidan bajo users porque:
+1. Propiedad (ownership): cada entrenamiento y reporte pertenece a un usuario específico.
+2. Filtrado natural: la URI ya codifica la relación, eliminando la necesidad de un
+parámetro de consulta adicional.
+3. Seguridad: el servidor puede verificar que el usuario autenticado coincide con el
+{userId} de la URI antes de permitir la operación.
+4.4 Ejemplos de URIs completas
+GET /v1/users/me
+GET /v1/exercises
+GET /v1/exercises/f47ac10b-58cc-4372-a567-0e02b2c3d479
+POST /v1/users/a1b2c3d4-.../workouts
+GET /v1/users/a1b2c3d4-.../workouts?status=pending&from=2026-03-01&to=2026-03-31
+GET /v1/users/a1b2c3d4-.../workouts/d4f2e8a1-...
+PUT /v1/users/a1b2c3d4-.../workouts/d4f2e8a1-...
+DELETE /v1/users/a1b2c3d4-.../workouts/d4f2e8a1-...
+GET /v1/users/a1b2c3d4-.../reports?period=month
+En estas URIs, los identificadores UUID se muestran truncados con "..." por brevedad.
+4.5 Paginación, filtrado y ordenamiento
+Para listados extensos, la API utiliza parámetros de consulta:
+• Paginación: page (número de página) y limit (elementos por página, máximo 100).
+• Filtrado: status, from y to permiten restringir resultados por estado y rango de fechas.
+• Ordenamiento: sort acepta valores como scheduledAt:asc (por defecto) o
+createdAt:desc. Los entrenamientos pendientes se listan ordenados por fecha de forma
+ascendente por defecto, cumpliendo el requerimiento del caso de estudio.
+5. Representaciones JSON
+12
+5.1 Usuario — Respuesta de registro
+{
+"data": {
+"id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+"name": "Carlos Méndez",
+"email": "carlos.mendez@email.com",
+"createdAt": "2026-03-15T10:30:00Z"
+}
+}
+5.2 Respuesta de login
+{
+"data": {
+"token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+"expiresIn": 3600,
+"user": {
+"id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+"name": "Carlos Méndez",
+"email": "carlos.mendez@email.com"
+}
+}
+}
+5.3 Ejercicio
+{
+"data": {
+"id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+"name": "Press de Banca",
+"description": "Ejercicio compuesto para el desarrollo del pectoral mayor,
+deltoides anterior y tríceps.",
+"category": "pecho"
+}
+}
+5.4 Lista de ejercicios
+{
+"data": [
+{
+"id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+"name": "Press de Banca",
+"description": "Ejercicio compuesto para el desarrollo del pectoral mayor.",
+"category": "pecho"
+},
+{
+"id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+"name": "Sentadilla",
+"description": "Ejercicio compuesto para cuádriceps, glúteos y femorales.",
+"category": "piernas"
+}
+13
+],
+"pagination": {
+"total": 24,
+"page": 1,
+"limit": 10,
+"totalPages": 3
+}
+}
+5.5 Entrenamiento — Cuerpo de petición (POST / PUT)
+Ejemplo de cuerpo de petición al crear o actualizar un entrenamiento:
+{
+"name": "Tren Superior - Día 1",
+"description": "Rutina enfocada en pecho y tríceps",
+"scheduledAt": "2026-03-18T07:00:00Z",
+"exercises": [
+{
+"exerciseId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+"sets": 4,
+"reps": 12,
+"weight": 60
+},
+{
+"exerciseId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+"sets": 3,
+"reps": 15,
+"weight": 20
+}
+],
+"comments": "Aumentar peso en press de banca la próxima semana."
+}
+5.6 Entrenamiento creado — Respuesta
+{
+"data": {
+"id": "d4f2e8a1-3b7c-4e5d-9f0a-1c2b3d4e5f60",
+"userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+"name": "Tren Superior - Día 1",
+"description": "Rutina enfocada en pecho y tríceps",
+"scheduledAt": "2026-03-18T07:00:00Z",
+"status": "pending",
+"exercises": [
+{
+"exerciseId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+"name": "Press de Banca",
+"sets": 4,
+"reps": 12,
+"weight": 60
+},
+{
+"exerciseId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+14
+"name": "Extensiones de Tríceps",
+"sets": 3,
+"reps": 15,
+"weight": 20
+}
+],
+"comments": "Aumentar peso en press de banca la próxima semana.",
+"createdAt": "2026-03-15T14:20:00Z"
+}
+}
+5.7 Informe de progreso
+{
+"data": {
+"id": "e9c1d3f5-a2b4-4c6d-8e0f-1a2b3c4d5e6f",
+"userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+"period": "month",
+"totalWorkouts": 12,
+"completedWorkouts": 10,
+"completionRate": 83.3,
+"averageWeight": 55.5,
+"topCategories": [
+{ "category": "pecho", "count": 5 },
+{ "category": "piernas", "count": 4 },
+{ "category": "espalda", "count": 3 }
+],
+"generatedAt": "2026-03-31T23:59:00Z"
+}
+}
+6. Buenas prácticas RESTful
+6.1 Uso de verbos HTTP
+La API utiliza los verbos HTTP de acuerdo con su semántica estándar:
+Tabla 13
+Verbos HTTP utilizados en la API
+Verbo Uso en la API Idempotente
+GET Consultar recursos (listas, detalles, informes) Sí
+POST Crear recursos (registro, login, nuevo entrenamiento) No
+PUT Actualizar un recurso completo Sí
+DELETE Eliminar un recurso Sí
+15
+Idempotencia: las operaciones GET, PUT y DELETE son idempotentes, lo que significa
+que ejecutarlas múltiples veces produce el mismo resultado que ejecutarlas una sola vez. Esto es
+importante para la tolerancia a fallos: si un cliente envía un PUT y no recibe respuesta, puede
+reintentar de forma segura sabiendo que el estado del recurso no se duplicará ni corromperá.
+POST no es idempotente porque cada invocación crea un nuevo recurso (un nuevo
+entrenamiento, un nuevo usuario).
+6.2 Autenticación con JWT
+La autenticación utiliza JSON Web Tokens (JWT) enviados en el header de cada petición
+protegida:
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Flujo de autenticación:
+1. El usuario envía credenciales a POST /v1/auth/login.
+2. El servidor valida las credenciales y retorna un JWT con un tiempo de expiración.
+3. El cliente almacena el token y lo envía en el header Authorization de cada petición
+subsiguiente.
+4. El servidor valida el token en cada petición antes de procesar la solicitud.
+6.3 Códigos de estado HTTP
+Tabla 14
+Códigos de estado HTTP utilizados en la API
+Código Significado Uso en la API
+200 OK Operación exitosa
+GET de recursos, PUT de actualización, DELETE
+exitoso
+201 Created Recurso creado POST de registro, POST de creación de entrenamiento
+400 Bad Request Solicitud inválida Datos faltantes, formato incorrecto, validación fallida
+16
+Código Significado Uso en la API
+401 Unauthorized No autenticado
+Token faltante, token expirado, credenciales
+incorrectas
+403 Forbidden No autorizado
+Usuario autenticado intentando acceder a recursos de
+otro usuario
+404 Not Found Recurso no encontrado ID de usuario, entrenamiento o ejercicio inexistente
+500 Internal
+Server Error
+Error del servidor Errores inesperados, fallos de base de datos
+6.4 Formato de respuestas de error
+{
+"error": {
+"code": "VALIDATION_ERROR",
+"message": "El campo 'email' es obligatorio.",
+"details": [
+{
+"field": "email",
+"issue": "missing_required_field"
+}
+]
+}
+}
+6.5 Propiedad de recursos (ownership) y autorización
+Un principio central del diseño es que solo los usuarios autenticados pueden crear,
+actualizar o eliminar sus propios planes de entrenamiento. Para garantizar esto, el servidor
+implementa dos niveles de control:
+1. Autenticación (401 Unauthorized): verifica que el token JWT sea válido y no haya
+expirado. Si falta el header Authorization o el token es inválido, la petición se rechaza
+antes de procesarse.
+2. Autorización (403 Forbidden): verifica que el {userId} presente en la URI corresponda
+al usuario identificado en el token. Por ejemplo, si el usuario A intenta ejecutar DELETE
+/v1/users/B/workouts/123, el servidor responde 403 porque el recurso pertenece a otro
+propietario.
+17
+Esta separación entre autenticación y autorización es una buena práctica que evita que un
+usuario acceda, modifique o elimine datos que no le pertenecen.
+6.6 Flujo completo de ejemplo
+La siguiente secuencia ilustra el uso de la API de principio a fin:
+1. POST /v1/auth/register → registra al usuario y responde 201 Created.
+2. POST /v1/auth/login → devuelve el token JWT en el cuerpo y un 200 OK.
+3. GET /v1/exercises → el cliente consulta el catálogo de ejercicios disponibles.
+4. POST /v1/users/{userId}/workouts → con el token en el header Authorization, crea un
+entrenamiento y obtiene 201 Created.
+5. GET /v1/users/{userId}/workouts?status=pending → lista los entrenamientos pendientes
+ordenados por fecha.
+6. PUT /v1/users/{userId}/workouts/{id} → actualiza el entrenamiento (añade comentarios,
+cambia series/reps/peso).
+7. DELETE /v1/users/{userId}/workouts/{id} → elimina el entrenamiento.
+8. GET /v1/users/{userId}/reports?period=month → genera y retorna el informe mensual de
+progreso.
+7. Estrategia de versionado
+7.1 Prefijo de versión en la URI
+Todas las rutas de la API comienzan con el prefijo /v1/:
+https://api.example.com/v1/users
+7.2 Justificación
+18
+El versionado en la URI es la estrategia más transparente y ampliamente adoptada por las
+siguientes razones:
+1. Claridad para el desarrollador: la versión es visible directamente en la URL, lo que
+facilita la depuración y la documentación.
+2. Facilidad de migración: cuando se lance la versión 2 (/v2/), los clientes existentes
+pueden continuar operando con /v1/ sin interrupciones.
+3. Proxy y caché: los servidores intermedios (CDN, proxies) pueden distinguir versiones
+por la ruta, facilitando el cacheo diferenciado.
+4. Coexistencia: es posible mantener múltiples versiones activas simultáneamente durante
+el período de transición.
+7.3 Plan de evolución
+Cuando se necesite realizar cambios incompatibles (breaking changes) en la API:
+1. Se lanzará /v2/ con los cambios necesarios.
+2. /v1/ permanecerá operativa durante un período de transición (mínimo 6 meses).
+3. Se notificará a los clientes sobre la deprecación de /v1/ mediante headers de respuesta
+(Deprecation, Sunset).
+7.4 Ejemplo de headers de deprecación
+Deprecation: true
+Sunset: Sat, 01 Jan 2027 00:00:00 GMT
+Link: <https://api.example.com/v2/users>; rel="successor-version"
+Esto permite a los clientes automatizar la migración y recibir avisos antes de que la
+versión antigua deje de funcionar.
+8. Conclusiones
+19
+El diseño conceptual de la API RESTful para Workout Tracker demuestra la aplicación de
+principios fundamentales del diseño de interfaces de programación de aplicaciones. Se definieron
+cuatro recursos principales (Usuarios, Ejercicios, Entrenamientos e Informes) con sus respectivos
+endpoints, estructura de URIs jerárquica y representaciones JSON consistentes.
+Las buenas prácticas implementadas incluyen el uso correcto de verbos HTTP y su
+semántica de idempotencia, autenticación mediante JWT en el header de autorización, códigos
+de estado HTTP apropiados para cada escenario, y formato estructurado de respuestas y errores.
+La separación entre autenticación y autorización garantiza el principio de propiedad de datos,
+permitiendo que cada usuario solo gestione sus propios entrenamientos.
+La estrategia de versionado mediante prefijo URI (/v1/) proporciona una base sólida para
+la evolución futura de la API sin comprometer la compatibilidad con los clientes existentes,
+permitiendo la coexistencia de versiones durante los períodos de transición.
+Este diseño conceptual constituye la base técnica para la implementación posterior del
+backend, que incluirá la configuración de la base de datos relacional (definida en el modelo
+entidad-relación de la sección 2.5), la lógica de negocio, el middleware de autenticación JWT, las
+pruebas unitarias y la documentación estilo OpenAPI. La aplicación de la metodología de seis
+pasos garantiza que el diseño sea completo, coherente y listo para ser traducido a código en fases
+posteriores.
+20
+Referencias
+Fielding, R. T. (2000). Architectural styles and the design of network-based software
+architectures [Tesis doctoral, University of California, Irvine]. University of California,
+Irvine.
+JavaScript.info. (2024). JSON Web Tokens (JWT). https://javascript.info/cookie
+Masse, M. (2013). REST API design rulebook. O'Reilly Media.
+Neward, T. (2024). Roadmap.sh — Build a Fitness Workout Tracker API.
+https://roadmap.sh/projects/fitness-workout-tracker
+OpenAI. (2024). ChatGPT [Modelo de lenguaje grande]. https://openai.com/chatgpt
+OpenAPI Initiative. (2024). OpenAPI Specification v3.1.0. https://spec.openapis.org/oas/v3.1.0
+Richardson, L., & Ruby, S. (2007). RESTful web services. O'Reilly Media.
+Subramanian, S. (2018). Designing web APIs. O'Reilly Media.
