@@ -19,7 +19,7 @@ const exerciseCatalog = [
   }
 ];
 
-let workouts = [
+const workouts = [
   {
     id: 'd4f2e8a1-3b7c-4e5d-9f0a-1c2b3d4e5f60',
     userId: 'b42f53fa-7b30-4b91-8d36-dc1c6ef27611',
@@ -202,6 +202,8 @@ const deleteWorkout = (req, res) => {
 };
 
 module.exports = {
+  exerciseCatalog,
+  workouts,
   getUserWorkouts,
   getWorkoutById,
   createWorkout,
