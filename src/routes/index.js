@@ -13,7 +13,7 @@ router.get('/', (req, res) => {
         message: 'wprkout Tracker API',
         versions: ['v1'],
         endpints: {
-            v1: '/appi/v1'
+            v1: '/api/v1'
         }
     })
 })

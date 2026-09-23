@@ -79,6 +79,22 @@ const updateUser = (req, res) => {
   return res.status(200).json(users[index]);
 };
 
+const patchUser = (req, res) => {
+  const { id } = req.params;
+  const index = users.findIndex((user) => user.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ error: 'Usuario no encontrado' });
+  }
+
+  const { name, email, role } = req.body;
+  if (name !== undefined) users[index].name = name;
+  if (email !== undefined) users[index].email = email;
+  if (role !== undefined) users[index].role = role;
+
+  return res.status(200).json(users[index]);
+};
+
 const deleteUser = (req, res) => {
   const { id } = req.params;
   const index = users.findIndex((user) => user.id === id);
@@ -97,5 +113,6 @@ module.exports = {
   getUserById,
   createUser,
   updateUser,
+  patchUser,
   deleteUser
 };

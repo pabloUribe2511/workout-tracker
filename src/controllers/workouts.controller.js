@@ -188,6 +188,32 @@ const updateWorkout = (req, res) => {
   return res.status(200).json({ data: serializeWorkout(workouts[index]) });
 };
 
+const patchWorkout = (req, res) => {
+  const { userId, id } = req.params;
+  const index = workouts.findIndex((workout) => workout.userId === userId && workout.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ error: 'Entrenamiento no encontrado' });
+  }
+
+  const { name, description, scheduledAt, exercises, comments, status } = req.body;
+  if (name !== undefined) workouts[index].name = name;
+  if (description !== undefined) workouts[index].description = description;
+  if (scheduledAt !== undefined) workouts[index].scheduledAt = scheduledAt;
+  if (status !== undefined) workouts[index].status = status;
+  if (comments !== undefined) workouts[index].comments = comments;
+  if (exercises !== undefined) {
+    if (!Array.isArray(exercises) || exercises.length === 0) {
+      return res.status(400).json({
+        error: 'El campo exercises debe ser un array no vacío'
+      });
+    }
+    workouts[index].exercises = exercises;
+  }
+
+  return res.status(200).json({ data: serializeWorkout(workouts[index]) });
+};
+
 const deleteWorkout = (req, res) => {
   const { userId, id } = req.params;
   const index = workouts.findIndex((workout) => workout.userId === userId && workout.id === id);
@@ -208,5 +234,6 @@ module.exports = {
   getWorkoutById,
   createWorkout,
   updateWorkout,
+  patchWorkout,
   deleteWorkout
 };

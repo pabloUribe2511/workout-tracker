@@ -77,7 +77,86 @@ const getExerciseById = (req, res) => {
   return res.status(200).json({ data: exercise });
 };
 
+const createExercise = (req, res) => {
+  const { name, description, category } = req.body;
+
+  if (!name || !description || !category) {
+    return res.status(400).json({
+      error: 'Los campos name, description y category son requeridos'
+    });
+  }
+
+  const newExercise = {
+    id: `ex-${Date.now()}`,
+    name,
+    description,
+    category
+  };
+
+  exerciseCatalog.push(newExercise);
+
+  return res.status(201).json({ data: newExercise });
+};
+
+const updateExercise = (req, res) => {
+  const { id } = req.params;
+  const { name, description, category } = req.body;
+  const index = exerciseCatalog.findIndex((exercise) => exercise.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ error: 'Ejercicio no encontrado' });
+  }
+
+  if (!name || !description || !category) {
+    return res.status(400).json({
+      error: 'Los campos name, description y category son requeridos'
+    });
+  }
+
+  exerciseCatalog[index] = {
+    ...exerciseCatalog[index],
+    name,
+    description,
+    category
+  };
+
+  return res.status(200).json({ data: exerciseCatalog[index] });
+};
+
+const patchExercise = (req, res) => {
+  const { id } = req.params;
+  const index = exerciseCatalog.findIndex((exercise) => exercise.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ error: 'Ejercicio no encontrado' });
+  }
+
+  const { name, description, category } = req.body;
+  if (name !== undefined) exerciseCatalog[index].name = name;
+  if (description !== undefined) exerciseCatalog[index].description = description;
+  if (category !== undefined) exerciseCatalog[index].category = category;
+
+  return res.status(200).json({ data: exerciseCatalog[index] });
+};
+
+const deleteExercise = (req, res) => {
+  const { id } = req.params;
+  const index = exerciseCatalog.findIndex((exercise) => exercise.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ error: 'Ejercicio no encontrado' });
+  }
+
+  const deletedExercise = exerciseCatalog.splice(index, 1)[0];
+
+  return res.status(200).json({ deleted: deletedExercise.id });
+};
+
 module.exports = {
   getExercises,
-  getExerciseById
+  getExerciseById,
+  createExercise,
+  updateExercise,
+  patchExercise,
+  deleteExercise
 };
